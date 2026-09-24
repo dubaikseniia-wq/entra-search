@@ -203,4 +203,10 @@ discussion before a PR, and a new portal earns core promotion on observed demand
 and pointed at this shape instead: a standalone repo, listed from
 [Discussion #78](https://github.com/MadsLorentzen/ai-job-search/discussions/78).
 The `--location` bug he found in that review (a client-side substring filter that
-only ever saw the fetched page) is what the resolver above replaces.
+only ever saw the fetched page) is what the resolver above replaces; the transient
+`unparseable response body` he hit is what the single retry absorbs. The third
+thing he flagged — `robots.txt` disallowing `/api/` — is on the site side and is
+still open; it is disclosed above rather than quietly left.
+
+Posted to Discussion #78 on 24 Sep 2026:
+https://github.com/MadsLorentzen/ai-job-search/discussions/78#discussioncomment-18586225
