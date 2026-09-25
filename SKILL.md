@@ -206,9 +206,9 @@ and the process exits with code `1`.
   whose body does not parse as JSON (the live API occasionally truncates one under
   load); a second bad body exits 1 with `SEARCH_FAILED`. An unreachable API exits
   non-zero with a clear message, without retrying.
-- **robots.txt disclosure.** `https://entracareers.com/robots.txt` currently carries
-  `Disallow: /api/`, which is the path this CLI reads. ENTRA is the author's own
-  platform and these reads are operator-sanctioned; the robots policy is being
-  amended on the site side to allow the public read-only endpoints this skill uses
-  (`/api/jobs`, `/api/jobs/{id}`, `/api/companies`, `/api/references/*`). Stated
-  here rather than left for a reader to discover.
+- **robots.txt.** Fixed on 25 Sep 2026. `https://entracareers.com/robots.txt` no
+  longer carries `Disallow: /api/`. The read-only endpoints this skill uses are
+  named explicitly — `Allow: /api/jobs`, `/api/companies`, `/api/references/` — and
+  the authenticated parts of the API remain disallowed. ENTRA is the author's own
+  platform, and these reads are now sanctioned by the crawl policy itself rather
+  than only by the operator.

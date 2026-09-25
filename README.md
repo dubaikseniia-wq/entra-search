@@ -27,11 +27,11 @@ on ENTRA's public JSON API are unauthenticated.
 - **What it does not do.** Search and detail only. It never applies, never saves,
   never logs in, never writes. Applying happens on the employer's page or on ENTRA,
   by a human.
-- **robots.txt.** `https://entracareers.com/robots.txt` currently carries
-  `Disallow: /api/`, the path this CLI reads. As the operator I sanction these
-  read-only calls, and the robots policy is being amended site-side to allow the
-  public read endpoints the skill uses. Saying so here rather than leaving it to be
-  found.
+- **robots.txt.** Fixed on 25 Sep 2026. `https://entracareers.com/robots.txt` no
+  longer carries `Disallow: /api/`; the read endpoints this CLI uses are now named
+  explicitly — `Allow: /api/jobs`, `/api/companies`, `/api/references/`. The
+  authenticated parts of the API stay disallowed. The skill no longer reads a path
+  the site tells crawlers to avoid.
 - **Hosted service.** ENTRA is not self-hostable. `ENTRA_API_URL` repoints the CLI
   at a staging instance, `ENTRA_SITE_URL` at a different public site for the links;
   no other environment variable is read, and no other host is contacted.
@@ -205,8 +205,9 @@ and pointed at this shape instead: a standalone repo, listed from
 The `--location` bug he found in that review (a client-side substring filter that
 only ever saw the fetched page) is what the resolver above replaces; the transient
 `unparseable response body` he hit is what the single retry absorbs. The third
-thing he flagged — `robots.txt` disallowing `/api/` — is on the site side and is
-still open; it is disclosed above rather than quietly left.
+thing he flagged — `robots.txt` disallowing `/api/` — was on the site side and
+shipped on 25 Sep 2026: the public read endpoints are now explicitly allowed and
+only the authenticated ones are disallowed.
 
 Posted to Discussion #78 on 24 Sep 2026:
 https://github.com/MadsLorentzen/ai-job-search/discussions/78#discussioncomment-18586225
