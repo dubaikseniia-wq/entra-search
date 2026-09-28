@@ -52,8 +52,37 @@ IT  JO  JP  KR  KW  LB  LK  MX  MY  NL  OM  PH  PK  QA  SA  SG  UK  US
 
 Anything outside them — `--location Denmark`, `--location Copenhagen` — exits `1`
 with a JSON error on stderr that names the supported codes. It never returns an
-empty page and calls it a result. Remote roles in uncovered markets are still
-reachable with `--remote` and no `--location`.
+empty page and calls it a result.
+
+### If ENTRA does not cover your market
+
+`/scrape` passes your location on every call, so in an uncovered market the
+default behaviour is a failed run every run. Add `--location-fallback remote` to
+the `/scrape` mapping:
+
+```
+bun run .agents/skills/entra-search/cli/src/cli.ts search -q "<query>" \
+  --location "<your market>" --location-fallback remote --format json
+```
+
+An unresolvable `--location` then drops the location, searches remote roles
+instead of exiting, and records what happened in `meta.location`:
+
+```json
+"location": {
+  "input": "Denmark",
+  "resolved": false,
+  "fell_back_to": "remote",
+  "reason": "--location \"Denmark\": Denmark is a country ENTRA does not cover. ..."
+}
+```
+
+That is not a silent zero — the reason travels with the result, the fallback is
+remote-only rather than a widening to everywhere, and the default is still an
+explicit error. Roughly a quarter of ENTRA's postings are remote, so an uncovered
+market gets a real list rather than nothing.
+
+Running `--remote` with no `--location` at all does the same thing without the flag.
 
 ## ℹ️ Hosted-service dependency
 

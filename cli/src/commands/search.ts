@@ -29,6 +29,8 @@ export interface SearchOpts {
   // Free text resolved server-side to ENTRA's countryId/cityId before the search
   // runs (see ../location.ts). Unresolvable text is an error, never an empty page.
   location?: string
+  /** `remote` — an unresolvable --location searches remote roles instead of exiting 1. */
+  locationFallback?: "error" | "remote"
   jobage: number
   page: number
   limit: number
@@ -140,6 +142,7 @@ function renderPlain(rows: JobResult[]): string {
 
 export async function runSearch(opts: SearchOpts): Promise<number> {
   let location: ResolvedLocation | undefined
+  let locationFellBack: string | undefined
   if (opts.location) {
     // Resolved before anything else: an unsupported market must be an explicit
     // error, not a search that quietly matches nothing.
@@ -147,13 +150,28 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
       location = await resolveLocation(opts.location)
     } catch (e) {
       if (e instanceof LocationError) {
-        writeError(e.message, e.code)
+        // `/scrape` passes the user's own market on every call, so in a market
+        // ENTRA does not cover the default behaviour is a failed run, every run,
+        // for as long as the skill is installed. With --location-fallback remote
+        // the search drops the location and returns remote roles instead, and
+        // says so in meta.location. Not a silent zero: the reason travels with
+        // the result, and the default is still an explicit error.
+        if (opts.locationFallback === "remote") {
+          locationFellBack = e.message
+          location = undefined
+        } else {
+          writeError(e.message, e.code)
+          return 1
+        }
+      } else {
+        writeError(e instanceof Error ? e.message : String(e), "SEARCH_FAILED")
         return 1
       }
-      writeError(e instanceof Error ? e.message : String(e), "SEARCH_FAILED")
-      return 1
     }
   }
+  // The fallback only means anything as a remote search — a location we could not
+  // resolve must not silently widen into "everywhere".
+  const workMode = locationFellBack ? "remote" : opts.workMode
 
   try {
     let companyId: string | undefined
@@ -166,7 +184,9 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
       companyId = id
     }
 
-    const env = await apiGet<ListEnvelope<EntraJob>>(`/jobs?${buildQuery(opts, companyId, location).toString()}`)
+    const env = await apiGet<ListEnvelope<EntraJob>>(
+      `/jobs?${buildQuery({ ...opts, workMode }, companyId, location).toString()}`,
+    )
     if (!env) {
       writeError("/jobs not found — check ENTRA_API_URL (it must point at the API root, e.g. https://entracareers.com/api)", "SEARCH_FAILED")
       return 1
@@ -195,6 +215,16 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
               total,
               total_pages: totalPages,
               ...(location ? { location: locationMeta(location) } : {}),
+              ...(locationFellBack
+                ? {
+                    location: {
+                      input: opts.location,
+                      resolved: false,
+                      fell_back_to: "remote",
+                      reason: locationFellBack,
+                    },
+                  }
+                : {}),
             },
             results: rows,
           },

@@ -86,6 +86,9 @@ SEARCH FLAGS
                            ENTRA's countryId/cityId and applied server-side, e.g. -l US,
                            -l "United States", -l Berlin, -l "San Francisco, US". ENTRA covers
                            36 countries; anything outside them exits 1 with the supported codes.
+  --location-fallback <m>  error (default) | remote. With \`remote\`, a --location outside ENTRA's
+                           36 countries searches remote roles instead of exiting 1, and says so in
+                           meta.location. Meant for /scrape, which passes a location on every run.
   --remote [mode]          remote (bare flag) | hybrid | office. \`onsite\` is accepted as an alias of office.
   --experience <level>     ${EXPERIENCE_LEVELS.join(" | ")}
   --employment <type>      ${EMPLOYMENT_TYPES.join(" | ")}
@@ -138,7 +141,7 @@ function enumFlag<T extends string>(name: string, raw: string | undefined, allow
 // still prints usage.
 const KNOWN_FLAGS: Record<string, Set<string>> = {
   search: new Set([
-    "query", "location", "remote", "experience", "employment", "specialization", "company", "salary-min",
+    "query", "location", "location-fallback", "remote", "experience", "employment", "specialization", "company", "salary-min",
     "jobage", "sort", "page", "limit", "no-description", "format", "help", "h",
   ]),
   detail: new Set(["format", "help", "h"]),
@@ -195,10 +198,17 @@ async function main(): Promise<number> {
     if (employment === null) return 1
     const sort = enumFlag<Sort>("sort", stringFlag(flags.sort), SORTS)
     if (sort === null) return 1
+    const locationFallback = enumFlag<"error" | "remote">(
+      "location-fallback",
+      stringFlag(flags["location-fallback"]),
+      ["error", "remote"] as const,
+    )
+    if (locationFallback === null) return 1
 
     const opts: SearchOpts = {
       query: stringFlag(flags.query),
       location: stringFlag(flags.location),
+      locationFallback,
       jobage,
       page,
       limit,

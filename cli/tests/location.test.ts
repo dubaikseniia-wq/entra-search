@@ -252,3 +252,52 @@ describe("runSearch with --location", () => {
     expect(mock.urls().some((u) => new URL(u).pathname.endsWith("/jobs"))).toBe(false);
   });
 });
+
+describe("--location-fallback remote", () => {
+  // `/scrape` passes the user's own market on every call, so in a market ENTRA
+  // does not cover the default is a failed run, every run, for as long as the
+  // skill is installed. That is what the upstream index warns about. The
+  // fallback turns it into a remote search that states what it did.
+  test("default is unchanged: an uncovered market still exits 1", async () => {
+    mockApi([]);
+    const err = captureStderr();
+    const code = await runSearch({ ...searchOpts, location: "Denmark" });
+    expect(code).toBe(1);
+    expect(JSON.parse(err.get()).code).toBe("LOCATION_NOT_FOUND");
+  });
+
+  test("searches remote roles instead of failing, and says why in meta", async () => {
+    mockApi([]);
+    const out = captureStdout();
+    const code = await runSearch({ ...searchOpts, location: "Denmark", locationFallback: "remote" });
+    expect(code).toBe(0);
+    const loc = JSON.parse(out.get()).meta.location;
+    expect(loc.resolved).toBe(false);
+    expect(loc.fell_back_to).toBe("remote");
+    expect(loc.input).toBe("Denmark");
+    // The reason is what keeps this from being the silent zero we refuse.
+    expect(loc.reason).toContain("Denmark");
+  });
+
+  test("the fallback is remote-only — it never widens into everywhere", async () => {
+    const mock = mockApi([]);
+    captureStdout();
+    await runSearch({ ...searchOpts, location: "Denmark", locationFallback: "remote" });
+    const p = new URL(mock.urls().find((u) => new URL(u).pathname.endsWith("/jobs"))!).searchParams;
+    expect(p.has("countryId")).toBe(false);
+    expect(p.has("cityId")).toBe(false);
+    expect(p.get("workLocation")).toBe("remote");
+  });
+
+  test("a resolvable location is untouched by the flag", async () => {
+    const mock = mockApi([]);
+    const out = captureStdout();
+    await runSearch({ ...searchOpts, location: "US", locationFallback: "remote" });
+    const loc = JSON.parse(out.get()).meta.location;
+    expect(loc.country_code).toBe("US");
+    expect(loc.fell_back_to).toBeUndefined();
+    const p = new URL(mock.urls().find((u) => new URL(u).pathname.endsWith("/jobs"))!).searchParams;
+    expect(p.get("countryId")).toBe("c-us");
+    expect(p.has("workLocation")).toBe(false);
+  });
+});

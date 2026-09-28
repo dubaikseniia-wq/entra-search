@@ -123,6 +123,27 @@ $ echo $?
 1
 ```
 
+### In a market ENTRA does not cover
+
+`/scrape` passes your location on every call, so the default above means a failed
+run every run. `--location-fallback remote` drops the location, searches remote
+roles instead, and records why in `meta.location`:
+
+```console
+$ bun run src/cli.ts search -q engineer --location Denmark --location-fallback remote --limit 3
+{"results":[…],"meta":{"total":3812,"location":{"input":"Denmark","resolved":false,
+ "fell_back_to":"remote","reason":"--location \"Denmark\": Denmark is a country ENTRA does not cover. …"}}}
+$ echo $?
+0
+```
+
+The reason travels with the result, so this is not the silent zero the flag exists
+to avoid. The fallback is remote-only — an unresolvable location never widens into
+"everywhere" — and without the flag the behaviour is unchanged. About a quarter of
+ENTRA's postings are remote, so an uncovered market gets a real list.
+
+`--remote` with no `--location` does the same thing without the flag.
+
 Two known data quirks this handles rather than hides: ENTRA's city table carries
 duplicate rows (`san-francisco` under US, `san-francisco-2` under CA — the canonical
 slug wins, and the other is reported in `meta.location.also_matched`) and junk rows

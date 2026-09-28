@@ -65,6 +65,17 @@ describe("entra CLI flag validation", () => {
       expect(result.exitCode).not.toBe(0);
       expect(parsedStderr(result.stderr).code).toBe("BAD_ARG");
     });
+    // Added after the flag was first wired inside the options object, where it
+    // printed BAD_ARG to stderr and then ran the search anyway and exited 0 —
+    // the silently-ignored flag this CLI exists to refuse.
+    test("--location-fallback with an unsupported mode exits 1 and runs nothing", async () => {
+      const result = await runCLI(["search", "--location", "US", "--location-fallback", "wat"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      const err = parsedStderr(result.stderr);
+      expect(err.code).toBe("BAD_ARG");
+      expect(err.error).toMatch(/location-fallback/);
+    });
     test("--sort with an unsupported key exits 1 with BAD_ARG", async () => {
       const result = await runCLI(["search", "--sort", "title"]);
       expect(result.exitCode).not.toBe(0);
