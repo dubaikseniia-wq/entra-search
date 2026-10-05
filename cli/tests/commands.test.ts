@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { runSearch, withinDays, type SearchOpts } from "../src/commands/search";
 import { runDetail } from "../src/commands/detail";
-import { cleanHtml, formatSalary, normalizeId, toResult, type EntraJob } from "../src/helpers";
+import { cleanHtml, formatSalary, normalizeId, toResult, type EntraJob, retryPolicy } from "../src/helpers";
 
 const originalFetch = globalThis.fetch;
 const originalStdoutWrite = process.stdout.write;
@@ -207,13 +207,26 @@ describe("runSearch (mocked fetch)", () => {
   });
 
   test("a 5xx after retries exits 1 with SEARCH_FAILED on stderr", async () => {
-    globalThis.fetch = (async () => new Response("oops", { status: 503 })) as unknown as typeof fetch;
+    // Exercise the full retry loop, but at test speed: the real policy walks
+    // ~24 s of backoff, which the upstream maintainer saw flake on a slow box.
+    const saved = { ...retryPolicy };
+    Object.assign(retryPolicy, { baseDelayMs: 1, maxDelayMs: 2, jitterMs: 1, unparseableRetryMs: 1 });
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("oops", { status: 503 });
+    }) as unknown as typeof fetch;
     captureStdout();
     const err = captureStderr();
-    const code = await runSearch({ ...searchOpts, query: "x" });
-    expect(code).toBe(1);
-    expect(JSON.parse(err.get()).code).toBe("SEARCH_FAILED");
-  }, 60000);
+    try {
+      const code = await runSearch({ ...searchOpts, query: "x" });
+      expect(code).toBe(1);
+      expect(JSON.parse(err.get()).code).toBe("SEARCH_FAILED");
+      expect(calls).toBe(7); // the first try plus six retries, all actually made
+    } finally {
+      Object.assign(retryPolicy, saved);
+    }
+  });
 
   test("renders a table without the description", async () => {
     mockFetch([{ path: "/jobs", status: 200, body: list([job()]) }]);

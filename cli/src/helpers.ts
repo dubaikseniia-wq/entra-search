@@ -59,10 +59,19 @@ interface ApiError {
  * repeat turns a hard `SEARCH_FAILED` into a normal result. A second bad body is
  * surfaced rather than swallowed.
  */
+/**
+ * Retry timing, in one place. Tests shrink it to milliseconds so the "5xx after
+ * retries" case runs in an instant instead of walking the real ~24 s of backoff
+ * (which flaked on slow machines). Deliberately a module value and not an env
+ * read: the skill's safety profile is "one host, two env reads" and this must
+ * not add a third.
+ */
+export const retryPolicy = { baseDelayMs: 500, maxDelayMs: 8000, jitterMs: 500, unparseableRetryMs: 300 }
+
 export async function apiGet<T>(path: string): Promise<T | null> {
   const url = `${baseUrl()}${path}`
   const maxRetries = 6
-  let delay = 500
+  let delay = retryPolicy.baseDelayMs
   let retriedUnparseable = false
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -82,8 +91,8 @@ export async function apiGet<T>(path: string): Promise<T | null> {
       if (attempt === maxRetries) {
         throw new Error(`ENTRA API request failed: ${response.status} ${response.statusText}`)
       }
-      await sleep(delay + Math.floor(Math.random() * 500))
-      delay = Math.min(delay * 2, 8000)
+      await sleep(delay + Math.floor(Math.random() * retryPolicy.jitterMs))
+      delay = Math.min(delay * 2, retryPolicy.maxDelayMs)
       continue
     }
     if (response.status === 404) return null
@@ -97,7 +106,7 @@ export async function apiGet<T>(path: string): Promise<T | null> {
     if (!body) {
       if (!retriedUnparseable && attempt < maxRetries) {
         retriedUnparseable = true
-        await sleep(300 + Math.floor(Math.random() * 300))
+        await sleep(retryPolicy.unparseableRetryMs + Math.floor(Math.random() * retryPolicy.unparseableRetryMs))
         continue
       }
       throw new Error("ENTRA API returned an unparseable response body")
